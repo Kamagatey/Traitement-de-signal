@@ -1,0 +1,1011 @@
+---
+title: "ANALYSE DES DONNEES FONCTIONNELLES DE YANGO"
+author: 
+- name: "SORO DOBA ISSIAKA"
+- name: "KAMAGATE YOUSOUF"
+  phone: "07-79-98-67-99"
+  affiliation: "Data scientist"
+lang: fr
+date: "`r Sys.Date()`"
+geometry: "margin=2cm"
+number-sections: true
+output: 
+      rmdformats::readthedown:
+      #:downcute: 
+      #readthedown, html_clean,html_docco,material,robobook,lockdown,downcute #https://github.com/juba/rmdformats
+      self_contained: true
+      #thumbnails: true
+      lightbox: true 
+      gallery: false
+      highlight: tango
+      use_bookdown: TRUE
+      embed_fonts: true
+      css: ["style-1.css", "style-2.css"]
+      includes:
+        in_header: "header.html"
+     # number_sections: true
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+```
+
+
+```{css toc-content, echo = FALSE}
+ TOC {
+  right: 200px;
+  margin: 5px 0px 25px 0px;
+}
+
+.main-container {
+    margin-left: 10px;
+}
+
+p {
+  font-size:  16px;
+    line-height : 2em;  
+}
+
+h1 {
+  color: purple;
+  font-size:  18px;
+    line-height : 2em;  
+}
+
+h2 {
+  color:blues9;
+  font-size:  15px;
+    line-height : 2em;  
+}
+
+h3,h4{
+  color:red;
+  font-size:  12px;
+}
+
+.toggle-button {
+  background-color: #007BFF;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  margin: 10px 2px;
+  cursor: pointer;
+}
+
+.hidden-code {
+  display: none;
+}
+
+  
+```
+
+# **I.Introduction et source des données**
+
+Dans le cadre de ce projet, j'ai choisi un jeu de données réel provenant d'un hackathon organisé par **Yango**, une plateforme internationale de services de transport et de mobilité, le 7 décembre 2024 en *Côte d'Ivoire*. Ce hackathon avait pour objectif principal de prédire la **vitesse moyenne des véhicules** sur les principaux axes routiers d'Abidjan à différents moments de la journée. Plus précisément, l'objectif était de construire un modèle d'apprentissage automatique capable de fournir des prédictions précises des vitesses moyennes toutes les 15 minutes, pour permettre une meilleure planification des trajets, l'optimisation des itinéraires, et des estimations d'heure d'arrivée (ETA) fiables.
+
+Ce choix s'est imposé pour plusieurs raisons :
+
+- **Pertinence pour l’analyse fonctionnelle** :  
+   Les données contiennent des séries temporelles détaillées, mesurant la vitesse moyenne et le nombre de trajets de voitures, capturées toutes les **15 minutes sur différents tronçons de route**. Cela correspond parfaitement à la nature des **données fonctionnelles**, où des mesures sont collectées à intervalles réguliers pour chaque objet d’étude (ici, les tronçons de route). Bien que je ne possédais pas encore de notions sur les données fonctionnelles au moment du **hackathon**, les concepts acquis depuis m'ont permis de reconnaître que ces données se prêtent idéalement à ce type d'analyse.
+
+- **Application concrète** :  
+   Les résultats de cette analyse ont des **impacts significatifs dans des cas réels**, tels que l'amélioration de la ponctualité des utilisateurs et la précision des ETA. Dans un contexte urbain comme celui d'Abidjan, où la gestion du trafic est une priorité, cette analyse permet de mieux comprendre les schémas de circulation et d'optimiser les déplacements. Ce projet nous offre donc l’opportunité d’appliquer des concepts de données fonctionnelles à des problématiques concrètes et utiles au quotidien.
+
+- **Complexité et diversité des données** :  
+   Le jeu de données est riche, tant en volume qu’en variété de variables. Il offre une bonne base pour explorer différentes techniques de statistiques exploratoires, de modélisation fonctionnelle, et d’apprentissage supervisé, tout en explorant des tendances et des schémas cachés dans les données.
+
+---
+
+ - **Objectif du Projet**
+
+L'objectif de ce projet est de mettre en œuvre une analyse complète des données fonctionnelles contenues dans ce jeu de données. Les étapes consistent à :
+
+- Description et Prétraitement des Données;
+
+- Effectuer le lissage des données (pour obtenir un objet fonctionnel)
+
+- Explorer statistiquement les tendances et les variations temporelles (moyennes, variances, corrélations);
+
+- Identifier les schémas temporels clés (comme les périodes de pointe) à l’aide de méthodes comme l’Analyse en Composantes Principales Fonctionnelle (ACP fonctionnelle) ;
+
+
+---
+# **II.Description et Prétraitement des Données**
+
+## **Chargement et Description du Jeu de Données:** 
+
+```{r}
+library(readr)
+Train <- read_csv("Train.csv")
+head(Train)
+```
+
+**DESCRIPTION DU JEU DONNEES**
+
+
+Le jeu de données contient plusieurs variables organisées comme suit :
+
+- **ID** : Identifiant unique de chaque enregistrement.  
+- **persistent_id** : Identifiant unique de chaque tronçon de route.  
+- **day** : Indique le jour spécifique de collecte des données.  
+- **prediction_type** : Indique si les données concernent la période du matin ou du soir.  
+- **count_norm_XX_Y_** : Nombre normalisé de trajets de voitures mesuré toutes les 15 minutes.  
+   - `XX` : Heure (de 00 à 23).  
+   - `Y` : Quart d’heure dans l’heure (0 à 3).  
+- **speed_avg_XX_Y_** : Vitesse moyenne mesurée en mètres par seconde toutes les 15 minutes.  
+   - `XX` : Heure (de 00 à 23).  
+   - `Y` : Quart d’heure dans l’heure (0 à 3).  
+- **target** : Variable cible, représentant la vitesse moyenne prédite ou observée à un moment donné.
+
+Pour ce projet scolaire, je me suis concentré uniquement sur les colonnes speed_avg_XX_Y_ (vitesse moyenne des véhicules), car elles constituent l'élément clé pour comprendre la dynamique du trafic et leur structure temporelle est particulièrement adaptée à une analyse fonctionnelle.
+
+
+## **Nettoyage des Données :**
+
+- **Sélectionner les colonnes correspondant à `speed_avg_XX_Y_`, `persistent_id` et `prediction_type`**
+
+Dans cette étude, mon intérêt porte spécifiquement sur la **vitesse moyenne des véhicules** mesurée toutes les 15 minutes sur chaque tronçon de route. Par conséquent, je travaille uniquement avec les colonnes suivantes :
+
+- **speed_avg_XX_Y_** : Ces colonnes représentent la vitesse moyenne des véhicules en mètres par seconde, mesurée par tranche de 15 minutes, pour chaque heure de la journée (`XX` pour l’heure et `Y` pour le quart d’heure dans l’heure). Elles sont au cœur de mon analyse, car elles permettent de capturer les variations temporelles de la vitesse moyenne sur chaque tronçon.
+
+En complément, je m'intéresse également au type de prédiction lié aux **heures de pointe** et au **jour de la semaine**. Afin de simplifier l'analyse et de me concentrer sur une période spécifique, j'ai choisi de travailler uniquement sur les données correspondant à la **période de pointe du matin** (**`prediction_type = morning_rush_hour`**) et au **premier jour de la semaine** (**`day = first_weekday`**).  
+
+Cette sélection est justifiée par le fait que les heures de pointe matinales présentent des schémas de trafic caractéristiques et sont particulièrement pertinentes pour comprendre les défis liés à la gestion du trafic en début de journée. De plus, en me focalisant sur le premier jour de la semaine, je peux analyser les tendances du trafic au moment où l'activité reprend après le week-end, ce qui est crucial pour identifier les variations et les éventuels impacts sur la fluidité de la circulation.  
+
+```{r}
+# Sélectionner les colonnes correspondant à `speed_avg_XX_Y_`, persistent_id et `prediction_type`
+speed_avg_cols <- grep("^speed_avg_", colnames(Train), value = TRUE)  # Identifier les colonnes speed_avg_XX_Y_
+filtered_data <- Train[, c("persistent_id","day","prediction_type", speed_avg_cols)]  # Conserver seulement ces colonnes
+
+# **Filtrage des Lignes**
+# Ne conserver que les lignes où `prediction_type` est "morning_rush_hour"
+filtered_data <- filtered_data[filtered_data$prediction_type == "morning_rush_hour" & 
+                               filtered_data$day == "first_weekday", ]
+
+data <- filtered_data[, c("persistent_id", speed_avg_cols)]
+# Vérification du résultat
+#head(data)
+
+```
+
+- **Les valeurs manquantes et leurs traitements**
+
+Après avoir sélectionné les colonnes qui nous intéressent pour ce projet, le dataset final contient **4558 lignes et 23 colonnes** au lieu de **4558 lignes et 81 colonnes**.  
+
+Dans le cadre du prétraitement des données, nous avons appliqué une stratégie de gestion des valeurs manquantes :  
+
+- **Les variables contenant plus de 30 % de valeurs manquantes ont été supprimées**, notamment les variables allant de **`speed_avg_07_2_` jusqu'à `speed_avg_23_3_`**.  
+- **Les variables avec moins de 30 % de valeurs manquantes ont été conservées**, et leurs valeurs manquantes ont été **remplacées par la moyenne de la colonne correspondante**.  
+
+Cette sélection et ce traitement permettent de conserver uniquement les variables essentielles à l’analyse tout en garantissant la qualité des données utilisées. Cela nous assure de travailler sur un dataset propre et optimisé pour l’étude de l’évolution des vitesses moyennes sur les tronçons de route.
+
+```{r}
+# Calculer le pourcentage de valeurs manquantes pour chaque colonne
+missing_percent <- colSums(is.na(data)) / nrow(data) * 100
+
+# Créer un tableau pour afficher les résultats clairement
+missing_table <- data.frame(
+  Variable = names(missing_percent),
+  Missing_Percentage = round(missing_percent, 2)  # Arrondir à 2 décimales
+)
+
+# Afficher les colonnes avec des valeurs manquantes et leur pourcentage
+#print(missing_table[missing_table$Missing_Percentage > 0, ])
+
+```
+
+```{r}
+# Identifier les colonnes avec 100 % de valeurs manquantes
+cols_with_full_na <- colnames(data)[colSums(is.na(data)) == nrow(data)]
+
+# Supprimer ces colonnes du dataset
+data <- data[, !(colnames(data) %in% cols_with_full_na)]
+
+#colnames(data)
+```
+
+
+```{r}
+# Calculer le pourcentage de valeurs manquantes pour chaque colonne
+missing_percent <- colSums(is.na(data)) / nrow(data) * 100
+
+# Créer un tableau pour afficher les résultats clairement
+missing_table <- data.frame(
+  Variable = names(missing_percent),
+  Missing_Percentage = round(missing_percent, 2)  # Arrondir à 2 décimales
+)
+
+# Afficher les colonnes avec des valeurs manquantes et leur pourcentage
+#print(missing_table[missing_table$Missing_Percentage > 0, ])
+```
+
+```{r}
+# Remplacer les valeurs manquantes par la moyenne de chaque colonne
+data <- as.data.frame(
+  lapply(data, function(col) {
+    if (is.numeric(col)) {  # Vérifier si la colonne est numérique
+      col[is.na(col)] <- mean(col, na.rm = TRUE)  # Remplacer les NA par la moyenne
+    }
+    return(col)
+  })
+)
+
+```
+
+
+## **Exploration des Données Prétraitées**
+
+Les colonnes restantes dans notre dataset, nous pouvons explorer les données en visualisant les tendances, les distributions et les variations temporelles des vitesses moyennes.
+
+- **Analyse Descriptive :**
+
+     - Calculez les statistiques descriptives de base (moyenne, médiane, variance) pour comprendre la distribution des variables.
+     
+     
+     
+```{r}
+summary(data)
+```
+     
+    
+ - **Boxplot par Période de Temps**
+          
+Créez un boxplot pour voir la variation des vitesses moyennes pour chaque tranche horaire (par exemple, 00:00 à 01:00).
+
+
+
+```{r}
+library(tidyverse)
+# Restructurer les données pour ggplot2
+library(reshape2)
+data_long <- melt(data, id.vars = "persistent_id", 
+                  variable.name = "time_period", value.name = "speed_avg")
+
+# Ajouter une colonne "hour" pour regrouper par heure
+data_long$hour <- as.numeric(substr(data_long$time_period, 11, 12))
+
+# Tracer le boxplot
+ggplot(data_long, aes(x = factor(hour), y = speed_avg)) +
+  geom_boxplot(fill = "lightgreen", outlier.colour = "red") +
+  labs(title = "Boxplot des Vitesses Moyennes par Heure",
+       x = "Heure", y = "Vitesse Moyenne (m/s)") +
+  theme_minimal()
+
+```
+
+ - **Histogramme des vitesses moyennes**
+
+la distribution des vitesses sur tous les tronçons     
+
+```{r}
+library(ggplot2)
+data_melted <- reshape2::melt(data, id.vars = "persistent_id")
+
+ggplot(data_melted, aes(value)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  labs(title = "Distribution des vitesses moyennes",
+       x = "Vitesse moyenne (km/h)",
+       y = "Frequence") +
+  theme_minimal()
+
+```
+   
+ - **Évolution des vitesses moyennes dans le temps pour  un tronçon spécifique** 
+
+
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Sélectionner un tronçon spécifique (par exemple, le premier de la liste)
+troncon_id <- unique(data$persistent_id)[3]  # Modifier pour choisir un autre tronçon
+
+# Transformer les données en format long
+data_long <- melt(data, id.vars = "persistent_id", variable.name = "heure", value.name = "vitesse")
+
+# Extraire l'heure à partir du nom de la variable
+data_long$heure <- as.numeric(gsub("speed_avg_([0-9]+)_.*", "\\1", data_long$heure))
+
+# Filtrer uniquement pour le tronçon sélectionné
+data_troncon <- subset(data_long, persistent_id == troncon_id)
+
+# Graphique d'évolution
+ggplot(data_troncon, aes(x = heure, y = vitesse)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "red", size = 2) +
+  labs(title = paste("Evolution de la vitesse pour le troncon", troncon_id),
+       x = "Heure",
+       y = "Vitesse moyenne (km/h)") +
+  theme_minimal()
+
+
+```
+
+
+# **III.Lissage des Données Fonctionnelles**
+
+Il faut noter que **l'analyse des données fonctionnelles (FDA - Functional Data Analysis)** est une branche de la statistique qui traite des données considérées comme des continues, plutôt que des observations discrètes. Contrairement aux approches classiques où les données sont représentées par des vecteurs de valeurs numériques, l'FDA modélise chaque observation comme une courbe ou une fonction. Cela permet de capturer les variations et les structures sous-jacentes dans les données sur un continuum
+
+## **Création de l'objet Fonctionnelles :**
+
+Nous allons d'abord transformer les données pour qu'elles puissent être analysées comme des fonctions. Cela implique de regrouper les valeurs de **speed_avg_XX_Y_** par **persistent_id** (tronçon de route) et de les traiter comme une série temporelle.
+
+    
+```{r}
+
+library(dplyr)
+library(tidyr)
+library(fda)
+
+# Sélection d'un tronçon spécifique (ex: premier disponible)
+troncon_id <- unique(data$persistent_id)[1]
+
+# Transformation des données
+data_troncon <- data %>%
+  filter(persistent_id == troncon_id) %>%
+  pivot_longer(cols = starts_with("speed_avg"),
+               names_to = "time",
+               values_to = "speed") %>%
+  mutate(time = gsub("speed_avg_|_$", "", time)) %>%  # Supprime "speed_avg_" et le "_" final
+  separate(time, into = c("hour", "quarter"), sep = "_", convert = TRUE) %>%  
+  mutate(time = hour + quarter * 0.15)  # Conversion en heure fractionnée
+
+# Vérification
+head(data_troncon)
+
+
+```
+
+
+## **Lissage par moindres carrés**
+
+### **Rappel Mathémétique de la notion de lissage par moindres carrés**
+
+Le lissage par moindres carrés est une méthode mathématique utilisée pour ajuster une fonction (souvent polynomiale) à des données bruitées ou discrètes, en minimisant la somme des carrés des écarts entre les valeurs observées et celles prédites par la fonction.
+
+L'idée principale est d'approcher une fonction $f(x)$ à partir de données discrètes $\{(x_i, y_i)\}_{i=1}^N$ en utilisant une combinaison linéaire d'une base de fonctions prédéfinies. 
+
+- Représentation en Base
+
+On suppose que la fonction $f(x)$ peut être exprimée comme une combinaison linéaire d'une base de fonctions $\{\phi_k(x)\}_{k=1}^K$ :
+
+$$
+f(x) = \sum_{k=1}^K c_k \phi_k(x),
+$$
+où :
+
+- $\phi_k(x)$ sont les fonctions de base (par exemple, des polynômes, des splines, des fonctions sinus/cosinus, etc.),
+- $c_k$ sont les coefficients à déterminer.
+
+- Minimisation de l'Erreur Quadratique
+L'objectif est de trouver les coefficients $c_k$ tels que la somme des carrés des résidus soit minimisée :
+
+$$
+E(c_1, c_2, \dots, c_K) = \sum_{i=1}^N \left( y_i - \sum_{k=1}^K c_k \phi_k(x_i) \right)^2.
+$$
+
+En développant cette expression et en prenant les dérivées partielles par rapport aux coefficients $c_k$, on obtient un système d'équations linéaires appelé les **équations normales** :
+
+$$
+\mathbf{A} \mathbf{c} = \mathbf{b},
+$$
+où :
+- $\mathbf{A}$ est une matrice $K \times K$ définie par $A_{kj} = \sum_{i=1}^N \phi_k(x_i) \phi_j(x_i)$,
+- $\mathbf{b}$ est un vecteur $K \times 1$ défini par $b_k = \sum_{i=1}^N y_i \phi_k(x_i)$,
+- $\mathbf{c} = [c_1, c_2, \dots, c_K]^T$ est le vecteur des coefficients inconnus.
+
+- Résolution du Système
+
+Une fois le système résolu, on obtient les coefficients $c_k$, et donc la fonction approchée $f(x)$ sous forme :
+
+$$
+\hat{f}(t) = \sum_{k=1}^K c_k \phi_k(x).
+$$
+En somme, le choix du **type de base et de sa dimension** est essentiel pour obtenir une représentation fonctionnelle précise et robuste des données, ce qui est crucial pour les étapes ultérieures de notre analyse.
+
+
+### Choix du Type de Base
+
+```{r}
+# Tracer la courbe de vitesse moyenne
+plot(data_troncon$time, data_troncon$speed, type = "b",
+     xlab = "Temps (heures)", ylab = "Vitesse Moyenne (m/s)",
+     main = paste("Evolution de la Vitesse - Troncon", troncon_id),
+     col = "blue", pch = 16)
+
+```
+
+Le graphe montre une évolution de la vitesse moyenne avec des fluctuations assez marquées et un comportement irrégulier. Pour le lissage, une **base de B-splines** semble être un bon choix, car elle permet :  
+
+-  *Une flexibilité dans l'ajustement** aux variations locales des données.  
+- *Un contrôle sur la régularité de la courbe**, grâce au choix du nombre de nœuds et de l'ordre des splines.  
+
+
+###  **Dimension de la Base ($K$)**
+
+La dimension de la base ($K$) représente le nombre de fonctions utilisées pour approximer les données. Ce paramètre est crucial car il influence directement la capacité d'ajustement du modèle :
+
+- **Si $K$ est trop petit** :
+  - Le modèle sera sous-paramétré et ne pourra pas capturer toute la variabilité des données.
+  - Résultat : Une sous-adaptation (underfitting) avec une approximation trop simpliste.
+
+- **Si $K$ est trop grand** :
+  - Le modèle sera sur-paramétré et risquera de surajuster (overfitting) les données bruitées.
+  - Résultat : Une courbe qui suit trop fidèlement les fluctuations aléatoires, perdant ainsi sa signification fonctionnelle.
+
+```{r}
+# Définition des valeurs à tester
+norder_vals = c(3,4,6, 8, 10)  # Ordres de la B-spline
+noeuds_vals = c(10, 20, 30,40)  # Nombre de nœuds
+
+# Paramètres d'affichage (grid de 3x4 si on a 3 ordres et 4 nombres de nœuds)
+par(mfrow = c(length(norder_vals), length(noeuds_vals)), mar = c(3, 3, 2, 1))
+
+# Stockage des erreurs d'approximation
+errors = matrix(NA, nrow = length(norder_vals), ncol = length(noeuds_vals),
+                dimnames = list(paste("Ordre", norder_vals), paste("Nœuds", noeuds_vals)))
+
+# Boucle sur les combinaisons de norder et noeuds
+for (i in seq_along(norder_vals)) {
+  for (j in seq_along(noeuds_vals)) {
+    d = norder_vals[i]
+    l = noeuds_vals[j]
+    
+    # Création de la base B-spline
+    splbasis = create.bspline.basis(rangeval = range(data_troncon$time), 
+                                    norder = d, 
+                                    breaks = seq(min(data_troncon$time), max(data_troncon$time), length = l))
+    
+    # Ajustement des coefficients
+    chat = Data2fd(data_troncon$time, data_troncon$speed, basisobj = splbasis)
+    
+    # Évaluation de la courbe lissée
+    fhat = eval.fd(data_troncon$time, chat)
+    
+    # Tracé des résultats
+    plot(data_troncon$time, data_troncon$speed, pch = 20, cex = 0.5,
+         main = paste("Ordre =", d, "| Nœuds =", l), xlab = "Temps (h)", ylab = "Vitesse (m/s)")
+    lines(data_troncon$time, fhat, col = 4, lwd = 2)
+    
+    # Calcul de l'erreur quadratique moyenne
+    errors[i, j] = mean((fhat - data_troncon$speed)^2)
+  }
+}
+
+```
+Les résultats montrent clairement que les ordres bas (3 ou 4) sont les meilleurs choix dans la plupart des cas, surtout lorsque le nombre de nœuds est suffisamment élevé . Cela permet de minimiser l'erreur tout en évitant la complexité excessive des modèles avec des ordres élevés.
+
+### **Les coefficients C**
+
+ Une fois que nous avons trouver la dimension $D$ (d'ordre 3) et la base B-splines , il reste de determiner les coefficients $\hat{c}$ donné par $\hat{c} = (\Phi^T \Phi)^{-1} \Phi^T y$
+ 
+```{r}
+# Définir les paramètres optimaux trouvés : ordre 10 et nombre de nœuds 40
+rangeval <- c(min(data_troncon$time), max(data_troncon$time)) # Plage des données temporelles
+norder <- 8 # Ordre optimal trouvé
+nbasis <- 40 - norder + 2 # Calcul du nombre de fonctions de base pour les B-splines (formule générale)
+
+# Création de la base de B-splines avec les paramètres optimaux
+splbasis <- create.bspline.basis(rangeval = rangeval, nbasis = nbasis, norder = norder)
+
+# Conversion des données en objet fonctionnel
+fd_obj <- Data2fd(argvals = data_troncon$time, 
+                  y = data_troncon$speed, 
+                  basisobj = splbasis)
+
+# Comparaison des coefficients obtenus
+cbind(fd_obj$coefs, chat)
+
+```
+ Une fois les coefficients obtenus, on peut représenter le lissage obtenu en reconstruisant la fonction estimée par 
+ $\hat{f}(t) = \sum_{i=1}^D c_k \varphi_k(t)$ en l'évaluant sur une grille $(t_1,\ldots,t_m)$ choisie (on peut spécifier une grille différente de la grille d'origine).
+ 
+```{r}
+# Évaluation de la fonction lissée aux points de temps de data_troncon
+fhat <- eval.fd(data_troncon$time, fd_obj)
+
+# Affichage des valeurs estimées
+fhat
+
+```
+ 
+- **Représentation de la courbe lissée estimée sur les données brutes mesurées**
+
+
+```{r}
+# Tracer les données brutes (points rouges)
+plot(data_troncon$time, data_troncon$speed, pch = 20, col = "red",
+     xlab = "Temps (heures)", ylab = "Vitesse Moyenne (m/s)",
+     main = paste("Courbe Lissee vs Donnees Brutes - TronCon", troncon_id))
+
+# Ajouter la courbe lissée (ligne bleue)
+lines(data_troncon$time, fhat, col = "blue", lwd = 2)  # Bleu avec épaisseur de ligne = 2
+
+# Légende
+legend("topright", legend = c("brutes", "lissee"), 
+       col = c("red", "blue"), pch = c(20, NA), lty = c(NA, 1), lwd = c(NA, 2))
+
+```
+```{r}
+# Définition de la grille d'évaluation pour lissage (temps en heures)
+grille_eval <- seq(min(data_troncon$time), max(data_troncon$time), length.out = 50)
+
+# Calcul de la dérivée première et seconde de la courbe lissée
+fhatprim <- eval.fd(grille_eval, fd_obj, Lfdobj = 1)  # Dérivée première
+fhatpprim <- eval.fd(grille_eval, fd_obj, Lfdobj = 2) # Dérivée seconde
+
+# Tracé des dérivées
+par(mfrow=c(1,2))  # Affichage des deux graphes côte à côte
+
+# Graphique de la dérivée première
+plot(grille_eval, fhatprim, type="l", col="blue", lwd=2, 
+     main="Derivee Premiere", xlab="Temps (heures)", ylab="Variation de vitesse")
+
+# Graphique de la dérivée seconde
+plot(grille_eval, fhatpprim, type="l", col="red", lwd=2, 
+     main="Derivee Seconde", xlab="Temps (heures)", ylab="Acceleration")
+
+```
+Nous constatons que la **dérivée première et la dérivée seconde** sont bien lissées, ce qui indique une continuité et une régularité satisfaisantes des courbes. En revanche, le **lissage simple** ne semble pas optimal, car il présente encore des **pics abrupts** et des **discontinuités locales**, rendant certaines zones **non dérivables**. Cela suggère que le lissage appliqué n'est pas suffisamment efficace pour capturer une évolution fluide des données. Ainsi, l'approche basée sur les dérivées semble être **le meilleur choix**, car elle offre une représentation plus régulière et cohérente des tendances sous-jacentes.
+
+### Plusieurs trajectoires
+
+On reprend la base de B-splines cubiques avec les mêmes noeuds equirépartis. On peut lisser l'ensemble des courbes en donnant comme entrée la matrice des données brutes à la fonction `Data2fd` (1 courbe individuelle par colonne). On obtient alors une matrice contenant les coefficients $\hat{c}_i$ de chaque individu
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+data_transformer <- data %>%
+  pivot_longer(cols = starts_with("speed_avg"),
+               names_to = "time",
+               values_to = "speed") %>%
+  mutate(time = gsub("speed_avg_|_$", "", time)) %>%  # Supprime "speed_avg_" et le "_" final
+  separate(time, into = c("hour", "quarter"), sep = "_", convert = TRUE) %>%  
+  mutate(time = hour + quarter * 0.15)  # Conversion en heure fractionnée
+head(data_transformer)
+```
+
+```{r}
+# Chargement des librairies
+library(tidyverse)
+library(fda)  # Pour le lissage B-spline
+
+# Transformation des données : Tronçons en colonnes, temps en lignes
+data_transformer <- data %>%
+  pivot_longer(cols = starts_with("speed_avg"),
+               names_to = "time",
+               values_to = "speed") %>%
+  mutate(time = gsub("speed_avg_|_$", "", time)) %>%
+  separate(time, into = c("hour", "quarter"), sep = "_", convert = TRUE) %>%
+  mutate(time = hour + quarter * 0.15) %>%
+  pivot_wider(names_from = persistent_id, values_from = speed)  # Réorganiser en format large
+
+
+```
+
+
+
+```{r}
+time=data_transformer$time
+y <- data_transformer[, 4, drop = TRUE]  # Cela force l'extraction sous forme de vecteur
+```
+
+
+
+```{r}
+norder <- 8 # Ordre optimal trouvé
+nbasis <- 40 - norder + 2 # Calcul du nombre de fonctions de base pour les B-splines (formule générale)
+
+# Création de la base B-spline avec ces paramètres
+splbasis_opt = create.bspline.basis(rangeval = range(data_transformer$time), 
+                                    norder = norder, 
+                                    breaks = seq(min(data_transformer$time), max(data_transformer$time), length = nbasis))
+chat = Data2fd(data_transformer$time,y=y,basisobj = splbasis_opt)
+
+head(chat$coefs)
+```
+
+
+
+
+```{r}
+# Sélectionner toutes les colonnes à partir de la 4e et convertir en matrice
+y <- as.matrix(data_transformer[, 4:20])
+
+# Créer une palette de couleurs avec autant de couleurs que le nombre de courbes
+colors <- rainbow(ncol(y))  # 'rainbow' crée une palette de couleurs
+
+# Trouver les limites minimales et maximales pour les axes
+ymin <- min(y, na.rm = TRUE)
+ymax <- max(y, na.rm = TRUE)
+
+# Tracer la première courbe avec une couleur, ajuster les limites des axes
+plot(data_transformer$time, y[, 1], type = "l", col = colors[1], 
+     xlab = "Time", ylab = "Value", lwd = 0.5, 
+     xlim = range(data_transformer$time), ylim = c(ymin, ymax))
+
+# Superposer les autres courbes avec des couleurs différentes
+for (i in 2:ncol(y)) {
+  lines(data_transformer$time, y[, i], col = colors[i], lwd = 0.5)
+}
+
+```
+
+```{r}
+# Sélectionner les 20 premiers tronçons
+y <- as.matrix(data_transformer[, 4:23])  # Les colonnes 4 à 23 pour 20 tronçons
+time <- data_transformer$time
+
+# Définition des paramètres choisis
+ordre_opt <- 6  # Ordre du B-spline
+noeuds_opt <- 30  # Nombre de nœuds pour le B-spline
+
+# Créer une palette de couleurs pour les graphiques
+colors <- rainbow(ncol(y))  # Palette de couleurs pour chaque tronçon
+
+# Créer les 3 graphiques côte à côte (données brutes, données lissées, et moyenne)
+par(mfrow = c(1, 2))  # 1 ligne, 3 colonnes
+
+# Graphique des données brutes
+plot(time, y[, 1], type = "l", col = colors[1], lwd = 2, 
+     xlab = "Temps", ylab = "Valeur", main = "Donnees Brutes", ylim = range(y))
+for (i in 2:ncol(y)) {
+  lines(time, y[, i], col = colors[i], lwd = 2)  # Tracer les courbes brutes
+}
+
+# Initialiser une liste pour stocker les coefficients
+coefficients_list <- list()
+
+# Initialiser une matrice pour stocker toutes les courbes lissées évaluées
+fhatsmooth <- matrix(NA, nrow = length(time), ncol = ncol(y))
+
+# Appliquer le lissage B-spline pour chaque tronçon
+for (i in 1:ncol(y)) {
+  # Créer la base B-spline pour chaque tronçon
+  splbasis_opt <- create.bspline.basis(rangeval = range(time), 
+                                       norder = ordre_opt, 
+                                       breaks = seq(min(time), max(time), length.out = noeuds_opt))
+  
+  # Créer l'objet fonctionnel avec Data2fd
+  fd_i <- Data2fd(argvals = time, y = y[, i], basisobj = splbasis_opt)
+  
+  # Ajouter les coefficients à la liste
+  coefficients_list[[i]] <- fd_i$coefs
+  
+  # Évaluer la courbe lissée aux points d'échantillonnage
+  fhatsmooth[, i] <- eval.fd(time, fd_i)  # Stocker les valeurs dans la matrice fhatsmooth
+  
+  # Tracer les courbes lissées
+  if (i == 1) {
+    plot(time, fhatsmooth[, i], type = "l", col = colors[i], lwd = 2, 
+         xlab = "Temps", ylab = "Valeur", main = "Donnees Lissees", ylim = range(y))
+  } else {
+    lines(time, fhatsmooth[, i], col = colors[i], lwd = 2)
+  }
+}
+
+```
+
+
+### **Lissage par moindres carrés pénalisés**
+
+```{r}
+# Chargement des librairies
+library(fda)
+library(tidyverse)
+
+# Création de la base B-spline
+splbasis <- create.bspline.basis(rangeval = range(data_transformer$time), 
+                                 norder = 8, 
+                                 breaks = seq(min(data_transformer$time), max(data_transformer$time), length = 30))
+
+# Initialisation du vecteur pour stocker les erreurs GCV
+gcv <- numeric(21)
+
+# Sélection des 25 premiers tronçons
+troncons_subset <- 1:25
+
+# Boucle pour tester plusieurs valeurs de lambda
+for (i in 1:21) {
+  lambda <- exp(i - 10)  # Génération des valeurs de lambda
+  fdparTemp <- fdPar(splbasis, Lfdobj = 2, lambda = lambda)  # Paramètre de lissage
+  
+  # Lissage des données pour les 25 premiers tronçons
+  smoothdata <- smooth.basis(data_transformer$time, as.matrix(data_transformer[, troncons_subset]), fdparTemp)
+  
+  # Calcul de l'erreur GCV moyenne
+  gcv[i] <- mean(smoothdata$gcv)
+}
+
+# 📊 Tracer la courbe des valeurs GCV
+plot(gcv, type = "b", pch = 19, col = "blue", 
+     main = "Choix du lambda par validation croisee", 
+     xlab = "Index de lambda", ylab = "Erreur GCV")
+
+# 📌 Affichage du meilleur lambda
+best_lambda_index <- which.min(gcv)
+
+cat("Meilleur lambda :", best_lambda_index, "\n")
+
+```
+
+```{r}
+best_lambda <- exp(best_lambda_index - 10)
+fdparTemp <- fdPar(splbasis, Lfdobj = 2, lambda = best_lambda)
+
+# 📌 Application du lissage avec le meilleur lambda
+# Sélectionner uniquement les 25 premiers tronçons dans les données
+Tempsmooth <- smooth.basis(data_transformer$time, as.matrix(data_transformer[, 2:26]), fdParobj = fdparTemp)
+
+# 📌 Évaluation du lissage
+fhatsmooth <- eval.fd(data_transformer$time, Tempsmooth$fd)
+
+# 📊 Affichage des données bruitées et lissées
+par(mfrow = c(1, 2))  # Deux graphiques côte à côte
+
+# 1️⃣ Graphique des données bruitées
+matplot(data_transformer$time, as.matrix(data_transformer[, 4:28]), 
+        type = "l", lty = 1, col = rainbow(25),
+        ylab = "Vitesse", main = "Donnees brutes")
+
+# 2️⃣ Graphique des données lissées
+matplot(data_transformer$time, fhatsmooth, 
+        type = "l", lty = 1, col = rainbow(25),
+        ylab = "Vitesse", main = "Donnees lissees")
+
+```
+
+
+# **IV.Analyse Statistique Exploratoire**
+
+
+# **Analyse Statistique Exploratoire**
+
+```{r}
+# Combiner les coefficients en un tableau unique
+all_coefficients <- do.call(cbind, coefficients_list)
+
+# Créer un nouvel objet fd combiné avec la même base de splines
+all_fd <- fd(all_coefficients, basisobj = splbasis_opt)
+```
+
+## **Moyenne et Ecart-type Fonctionnelles :**
+
+     - Calculez les fonctions moyennes et de Ecart-type sur l'ensemble des courbes lissées.
+     
+     
+     
+```{r}
+# Calcul de la moyenne fonctionnelle
+mean_fd <- mean.fd(all_fd)  # Objet fonctionnel représentant la moyenne
+mean_values <- eval.fd(time, mean_fd)  # Évaluation de la moyenne aux points d'échantillonnage
+
+# Visualisation : Toutes les courbes lissées + moyenne fonctionnelle
+matplot(time, fhatsmooth, col = "gray", type = "l", 
+        xlab = "Temps", ylab = "Valeur", main = "Courbes lissees et moyenne fonctionnelle")
+
+# Ajouter la moyenne fonctionnelle en surbrillance
+lines(time, mean_values, col = "blue", lwd = 2)
+
+# Ajouter une légende
+legend("topright", 
+       legend = c("Courbes lissees", "Moyenne fonctionnelle"), 
+       col = c("gray", "blue"), lwd = c(1, 2))
+```
+
+### **Ecart-type fonctionnel**
+
+```{r}
+
+# Calcul de l'écart-type fonctionnel
+sdtemp <- sd.fd(all_fd)  # Objet fonctionnel représentant l'écart-type
+sd_values <- eval.fd(time, sdtemp)  # Évaluation de l'écart-type aux points d'échantillonnage
+
+# Visualisation : Toutes les courbes lissées + moyenne + intervalles de confiance
+matplot(time, fhatsmooth, col = "gray", type = "l", 
+        xlab = "Temps", ylab = "Valeur", main = "Courbes lissees, moyenne et intervalles de confiance")
+
+# Ajouter la moyenne fonctionnelle en surbrillance
+lines(time, mean_values, col = "blue", lwd = 2)
+
+# Ajouter les intervalles de confiance (±2 écart-types)
+upper_bound <- mean_values + 2 * sd_values  # Limite supérieure
+lower_bound <- mean_values - 2 * sd_values  # Limite inférieure
+
+lines(time, upper_bound, col = "red", lwd = 2, lty = 2)  # Limite supérieure
+lines(time, lower_bound, col = "red", lwd = 2, lty = 2)  # Limite inférieure
+
+# Ajouter une légende
+legend("topright", 
+       legend = c("Courbes lissees", "Moyenne fonctionnelle", "Intervalles de confiance (±2σ)"), 
+       col = c("gray", "blue", "red"), lwd = c(1, 2, 2), lty = c(1, 1, 2))
+```
+
+## **Covariance et Corrélation Fonctionnelles :**
+
+     - Analysez la structure de covariance des données fonctionnelles pour comprendre les relations entre les différentes courbes.
+```{r}
+# Calcul de la covariance fonctionnelle
+covtemp <- var.fd(all_fd)  # Objet fonctionnel représentant la covariance
+
+# Évaluation de la covariance sur une grille 2D
+n_points <- 50  # Nombre de points pour la grille 
+grid_time <- seq(min(time), max(time), length.out = n_points)  # Grille temporelle
+
+# Évaluer la covariance bidimensionnelle
+surfcov <- eval.bifd(grid_time, grid_time, covtemp)
+
+# Visualisation de la surface de covariance
+persp(grid_time, grid_time, surfcov, 
+      col = "gray", theta = 30, phi = 20, shade = 0.5,
+      xlab = "Temps", ylab = "Temps", zlab = "Covariance",
+      main = "Surface de covariance fonctionnelle")
+
+```
+
+```{r}
+contour(surfcov)
+```
+
+```{r}
+filled.contour(surfcov)
+```
+
+### corrélation
+
+```{r}
+# Évaluation de la matrice de corrélation fonctionnelle
+n_points <- 50  # Nombre de points pour la grille (peut être ajusté selon vos besoins)
+grid_time <- seq(min(time), max(time), length.out = n_points)  # Grille temporelle
+
+# Calcul de la matrice de corrélation fonctionnelle évaluée aux points spécifiés
+cortemp <- cor.fd(grid_time, all_fd)
+
+# Visualisation de la surface de corrélation avec persp
+persp(grid_time, grid_time, cortemp, 
+      col = "gray", theta = 90, phi = 40, shade = 0.5,
+      xlab = "Temps", ylab = "Temps", zlab = "Correlation",
+      main = "Surface de correlation fonctionnelle")
+
+
+```
+
+```{r}
+# Visualisation des niveaux de corrélation avec filled.contour
+filled.contour(grid_time, grid_time, cortemp, 
+               color.palette = terrain.colors, 
+               xlab = "Temps", ylab = "Temps", 
+               main = "Niveaux de correlation fonctionnelle")
+```
+
+
+     
+## **Analyse en Composantes Principales (ACP) Fonctionnelle :**
+
+     - Effectuez une ACP fonctionnelle pour réduire la dimensionnalité et identifier les principales tendances dans les données.
+
+```{r}
+TempACPF <- pca.fd(all_fd, nharm = 6, centerfns = TRUE)  # Extraire 3 composantes principales
+```
+
+```{r}
+# Afficher la proportion de variance expliquée par chaque composante principale
+cat("Proportion de variance expliquee par chaque composante principale :\n")
+print(TempACPF$varprop)
+```
+
+```{r}
+# Calculer la somme cumulative de la variance expliquée
+cumulative_variance <- cumsum(TempACPF$varprop)
+cat("Somme cumulative de la variance expliquee :\n")
+print(cumulative_variance)
+```
+```{r}
+# Tracer la somme cumulative de la variance expliquée
+plot(1:length(cumulative_variance), cumulative_variance, 
+     type = "b", pch = 19, col = "blue", 
+     xlab = "Nombre de composantes principales", 
+     ylab = "Variance cumulative expliquee (%)",
+     main = "Cumulative Variance Explained")
+
+# Ajouter une ligne horizontale à 90% ou 95% pour choisir un seuil
+abline(h = 0.8, col = "blue", lty = 2) 
+abline(h = 0.9, col = "red", lty = 2)  # Ligne à 90%
+abline(h = 0.95, col = "green", lty = 2)  # Ligne à 95%
+
+# Ajouter une légende
+legend("bottomright", 
+       legend = c("80%","90%", "95%"), 
+       col = c("blue","red", "green"), lty = 2, cex = 0.8)
+```
+
+
+
+
+```{r}
+# Personnaliser les couleurs des harmoniques individuelles
+par(mfrow = c(1, 2))  # Créer une grille 2x2 pour afficher les 4 premières harmoniques
+for (i in 1:2) {
+  plot(TempACPF$harmonics[[i]], 
+       col = rainbow(2)[i], lwd = 2, 
+       xlab = "Temps", ylab = "Valeur", 
+       main = paste("Composante principale", i))
+}
+
+```
+
+
+
+# **Conclusion du Projet**  
+
+Ce projet avait pour objectif d’analyser et de modéliser l’évolution de la vitesse moyenne sur un tronçon routier en utilisant des méthodes de lissage fonctionnel.  
+
+Tout d’abord, nous avons **préparé les données** en sélectionnant les variables pertinentes et en traitant les valeurs manquantes. Les variables contenant plus de **30 % de valeurs manquantes** ont été supprimées, tandis que celles avec un taux de valeurs manquantes inférieur ont été imputées par la moyenne. Après cette étape de nettoyage, notre jeu de données final contenait **4558 lignes et 81 colonnes**.  
+
+Ensuite, nous avons appliqué **une approche fonctionnelle** en utilisant les bases de B-splines pour lisser les courbes de vitesse moyenne. L’analyse a révélé que les bases de **B-splines d’ordre 3 ou 4** avec un nombre suffisant de nœuds (30 ou 40) offraient les résultats les plus satisfaisants. Nous avons également étudié la **dérivée première et seconde** des courbes lissées afin d’évaluer la dynamique des variations de vitesse.  
+
+Les résultats montrent que le **lissage simple** n’est pas toujours optimal, car il laisse apparaître des **pics abrupts et des discontinuités locales** qui rendent certaines zones **non dérivables**. En revanche, les **dérivées première et seconde** sont bien lissées, ce qui suggère une meilleure régularité des courbes et une représentation plus fluide des tendances sous-jacentes.  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
